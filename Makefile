@@ -9,11 +9,14 @@ EXAMPLES = $(shell find examples -type f -name '*.purs')
 EXAMPLE_OUT=/tmp/purescript-spec-example-output.out
 EXAMPLE_HTML=/tmp/purescript-spec-example-output.html
 
-build: $(OUTPUT)
+build: $(OUTPUT) bower_components
 	psc-make -o output/lib $(SRC) $(LIB)
 
 $(OUTPUT):
 	mkdir -p $@
+
+bower_components:
+	bower install
 
 docs:
 	psc-docs $(SRC) > API.md

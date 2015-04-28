@@ -5,6 +5,7 @@ import Test.Spec
 import Test.Spec.Node
 import Test.Spec.Assertions
 import qualified Test.Spec.Reporter as R
+import qualified Test.Spec.Summary as S
 
 successTest =
   describe "a" do
@@ -49,3 +50,18 @@ main = runNode $
             ]
         pending "reports errors"
         pending "reports pending"
+      describe "Summary" do
+        describe "successful" do
+          it "handles no groups" do
+            S.successful []
+              `shouldEqual` true
+          it "handles only describes" do
+            S.successful [Describe "Outer" [Describe "Inner" []]]
+              `shouldEqual` true
+          it "handles its with success" do
+            S.successful [It "Does It" Success]
+              `shouldEqual` true
+          it "handles its with success" do
+            S.successful [It "Does It" (Failure (Error "nooo"))]
+              `shouldEqual` true
+
