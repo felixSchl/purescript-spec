@@ -1,18 +1,19 @@
 module Test.Spec where
 
+import Effect.Aff.AVar
 import Prelude
-import Data.Newtype (class Newtype, unwrap)
-import Data.Maybe (Maybe(..))
-import Data.Array (intercalate)
-import Data.Foldable (traverse_)
-import Data.Monoid (mempty)
-import Control.Monad.IO (IO)
-import Control.Monad.IO.Class (class MonadIO, liftIO)
-import Control.Monad.Aff.AVar
-import Control.Monad.Aff.Class (liftAff)
-import Control.Monad.Aff.Console as Console
+
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Writer.Trans (WriterT, execWriterT, tell)
+import Data.Array (intercalate)
+import Data.Foldable (traverse_)
+import Data.Maybe (Maybe(..))
+import Data.Monoid (mempty)
+import Data.Newtype (class Newtype, unwrap)
+import Effect.Aff (Aff)
+import Effect.Aff.AVar as AVar
+import Effect.Aff.Class (class MonadAff, liftAff)
+import Effect.Class.Console as Console
 
 data Group a
   = Describe String (Array (Group a))
@@ -20,7 +21,8 @@ data Group a
 
 derive instance functorGroup :: Functor Group
 
-type Spec m a = WriterT (Array (Group a)) m Unit
+type Spec m a =
+  WriterT (Array (Group a)) m Unit
 
 class (Monad m, Applicative f) <= MonadSpec m f where
   it :: ∀ a. String -> a -> Spec m (f a)
@@ -35,13 +37,13 @@ derive newtype instance applyCollector :: Apply m => Apply (Collector m)
 derive newtype instance applicativeCollector :: Applicative m => Applicative (Collector m)
 derive newtype instance monadCollector :: Monad m => Monad (Collector m)
 derive newtype instance bindCollector :: Bind m => Bind (Collector m)
-derive newtype instance monadIO :: MonadIO m => MonadIO (Collector m)
+derive newtype instance monadAff :: MonadAff m => MonadAff (Collector m)
 
 derive instance newtypeCollector :: Newtype (Collector m a) _
 
 instance collectorMonadSpec
-  :: (Monad m, MonadIO m)
-  => MonadSpec (Collector m) IO
+  :: (Monad m, MonadAff m)
+  => MonadSpec (Collector m) Aff
   where
   it name body = tell [ It name $ pure body ]
   describe name spec = do
@@ -54,15 +56,15 @@ instance collectorMonadSpec
         f <- ff
         pure $ f v
   beforeAll setup spec = do
-    lockV   <- liftIO $ liftAff $ makeVar' unit
-    resultV <- liftIO $ liftAff makeVar
-    flip beforeEach spec do
-      liftAff (tryTakeVar lockV) >>= case _ of
-        Nothing -> liftAff $ peekVar resultV
+    lockV   <- liftAff $ AVar.new unit
+    resultV <- liftAff AVar.empty
+    beforeEach <@> spec $ do
+      liftAff (AVar.tryTake lockV) >>= case _ of
+        Nothing -> liftAff $ AVar.read resultV
         Just _  -> do
           v <- setup
           v <$ do
-            liftAff $ putVar resultV v
+            liftAff $ AVar.put v resultV
 
 collect
   :: ∀ m a
@@ -75,7 +77,7 @@ collect spec = do
 
 run
   :: ∀ m
-   . MonadIO m
+   . MonadAff m
   => Spec (Collector m) (m (m Unit))
   -> m Unit
 run spec = do
@@ -87,6 +89,5 @@ run spec = do
     go ctx (It name body) =
       let heading = intercalate " > " ctx <> " > it " <> name
        in do
-        liftIO $ liftAff $ Console.log heading
+        liftAff $ Console.log heading
         body
-

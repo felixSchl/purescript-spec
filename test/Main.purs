@@ -1,19 +1,19 @@
 module Test.Main where
 
 import Prelude
-import Control.Monad.IO
-import Control.Monad.Eff (Eff)
-import Control.Monad.Aff (launchAff)
-import Control.Monad.Aff.Class (liftAff)
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Aff.Console as Console
-import Test.Spec
 
-main :: Eff _ Unit
-main = void $ launchAff do
-  runIO $ run do
-    describe "foo" do
-      beforeAll (pure unit) do
-        beforeEach (pure unit) do
-          it "bar" \_ _ -> do
-            liftAff $ Console.log "hey"
+import Effect (Effect)
+import Control.Monad.Error.Class (throwError)
+import Effect.Aff (launchAff_)
+import Effect.Exception (error)
+import Test.Spec (beforeAll, beforeEach, describe, it)
+import Test.Spec as Spec
+
+main :: Effect Unit
+main = launchAff_ $ Spec.run $
+  describe "foo" do
+    beforeAll (pure 10) do
+      beforeEach (pure 20) do
+        it "bar" \a b -> do
+          unless (a == 20) $ throwError (error $ "a /= 10: " <> show a)
+          unless (b == 10) $ throwError (error $ "b /= 20: " <> show b)
